@@ -1,0 +1,32 @@
+name: staging-db-stop
+
+# Stops the staging database every night (23:00 Sydney standard time) to save money.
+# The deploy workflow starts it again; Azure also restarts a stopped server after 7 days.
+on:
+  schedule:
+    - cron: '0 13 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  stop:
+    if: vars.AZURE_SUBSCRIPTION_ID != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID_STAGING }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Stop staging PostgreSQL
+        run: |
+          set -euo pipefail
+          server=$(az postgres flexible-server list -g rg-nbdiary-staging --query "[0].name" -o tsv)
+          if [ -n "$server" ] && [ "$(az postgres flexible-server show -g rg-nbdiary-staging -n "$server" --query state -o tsv)" = "Ready" ]; then
+            az postgres flexible-server stop -g rg-nbdiary-staging -n "$server"
+          fi

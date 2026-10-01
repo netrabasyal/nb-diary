@@ -1,0 +1,64 @@
+name: promote
+
+# Deploys the image currently running in staging to production. Run it from the Actions tab
+# (or the GitHub app) on the main branch after checking staging.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy-prod:
+    if: github.ref == 'refs/heads/main' && vars.AZURE_SUBSCRIPTION_ID != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID_PROD }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Find the image tested in staging
+        id: image
+        run: |
+          set -euo pipefail
+          digest=$(az acr repository show --name "${{ vars.ACR_NAME }}" --image nbdiary-api:staging --query digest -o tsv)
+          echo "ref=${{ vars.ACR_LOGIN_SERVER }}/nbdiary-api@$digest" >> "$GITHUB_OUTPUT"
+          echo "Promoting nbdiary-api@$digest" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Deploy infrastructure and app
+        id: deploy
+        env:
+          NBDIARY_IMAGE: ${{ steps.image.outputs.ref }}
+          NBDIARY_REGISTRY: ${{ vars.ACR_LOGIN_SERVER }}
+          NBDIARY_ALERT_EMAIL: ${{ vars.ALERT_EMAIL }}
+        run: |
+          set -euo pipefail
+          url=$(az deployment group create \
+            --resource-group rg-nbdiary-prod \
+            --name "nbdiary-${GITHUB_RUN_NUMBER}" \
+            --parameters infrastructure/azure/prod.bicepparam \
+            --query properties.outputs.appUrl.value -o tsv)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Production: $url" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          url="${{ steps.deploy.outputs.url }}"
+          for attempt in $(seq 1 20); do
+            if curl -fsS --max-time 20 "$url/health/ready" && curl -fsS --max-time 20 -o /dev/null "$url/"; then
+              echo; echo "Production is healthy"; exit 0
+            fi
+            echo "Attempt $attempt failed, retrying"; sleep 15
+          done
+          exit 1
