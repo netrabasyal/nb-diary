@@ -1,0 +1,33 @@
+# Local development services. These credentials are for your machine only;
+# staging and production use Entra authentication with no database password.
+name: nb-diary
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: nbdiary
+      POSTGRES_USER: nbdiary
+      POSTGRES_PASSWORD: nbdiary_local_only
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nbdiary -d nbdiary"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  azurite:
+    # Local Blob Storage emulator, used from Phase 6 (exercise media) onwards.
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    command: azurite-blob --blobHost 0.0.0.0 --loose
+    ports:
+      - "10000:10000"
+    volumes:
+      - azurite-data:/data
+
+volumes:
+  postgres-data:
+  azurite-data:

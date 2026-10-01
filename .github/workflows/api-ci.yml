@@ -1,0 +1,50 @@
+name: api-ci
+
+on:
+  pull_request:
+    paths: ['services/api/**', '.github/workflows/api-ci.yml']
+  push:
+    branches: [main]
+    paths: ['services/api/**', '.github/workflows/api-ci.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: services/api
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: services/api/global.json
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build (warnings are errors)
+        run: dotnet build --no-restore -c Release
+
+      - name: Test (unit, architecture, PostgreSQL integration via Testcontainers)
+        run: dotnet test --no-build -c Release --logger "console;verbosity=normal"
+
+      - name: Fail on vulnerable packages
+        run: |
+          dotnet list package --vulnerable --include-transitive | tee vulnerable.txt
+          if grep -q "has the following vulnerable packages" vulnerable.txt; then
+            echo "::error::Vulnerable NuGet packages found"
+            exit 1
+          fi
+
+      - name: Build container image
+        run: docker build -t nbdiary-api:ci .
