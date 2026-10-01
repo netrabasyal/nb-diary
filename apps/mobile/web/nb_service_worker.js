@@ -12,6 +12,7 @@ const PRECACHE = [
   'index.html',
   'flutter.js',
   'flutter_bootstrap.js',
+  'register_service_worker.js',
   'main.dart.js',
   'manifest.json',
   'favicon.png',

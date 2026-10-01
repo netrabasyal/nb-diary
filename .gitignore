@@ -24,3 +24,7 @@ playwright-report/
 # Local secrets and overrides, never committed
 .env
 *.local.json
+
+# Flutter web build copied in for the container image (deploy workflow)
+services/api/web-dist/*
+!services/api/web-dist/.gitkeep

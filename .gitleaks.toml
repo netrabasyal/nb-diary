@@ -4,4 +4,13 @@ useDefault = true
 
 [allowlist]
 description = "Local Docker development credentials are not secrets"
-regexes = ['''nbdiary_local_only''']
+regexes = [
+  '''nbdiary_local_only''',
+  # Azure built-in role definition IDs (the same in every tenant, public documentation).
+  '''4633458b-17de-408a-b874-0445c86b69e6''', # Key Vault Secrets User
+  '''ba92f5b4-2d11-453d-a403-e96b0029c9fe''', # Storage Blob Data Contributor
+  '''b24988ac-6180-42a0-ab88-20f7382dd24c''', # Contributor
+  '''f58310d9-a9f6-439a-9e8d-f62e7b41a168''', # Role Based Access Control Administrator
+  '''7f951dce-4ed6-4b33-b3a4-f2d1a7e7c3fb''', # AcrPull
+  '''8311e382-0749-4cb8-b61a-304f252e45ec''', # AcrPush
+]

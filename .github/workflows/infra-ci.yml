@@ -1,0 +1,51 @@
+name: infra-ci
+
+on:
+  pull_request:
+    paths: ['infrastructure/**', '.github/workflows/infra-ci.yml']
+  push:
+    branches: [main]
+    paths: ['infrastructure/**', '.github/workflows/infra-ci.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infra-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: infrastructure/azure
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Bicep
+        run: az bicep install && az bicep version
+
+      # Linter warnings fail the build, the same as compiler warnings in the API.
+      - name: Build and lint templates
+        env:
+          NBDIARY_IMAGE: example.azurecr.io/nbdiary-api@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          NBDIARY_REGISTRY: example.azurecr.io
+        run: |
+          set -euo pipefail
+          for template in main.bicep bootstrap/main.bicep; do
+            az bicep build --file "$template" --stdout > /dev/null
+            az bicep lint --file "$template" --diagnostics-format sarif > lint.sarif
+            if jq -e '[.runs[].results[]] | length > 0' lint.sarif > /dev/null; then
+              jq -r '.runs[].results[] | "\(.locations[0].physicalLocation.artifactLocation.uri):\(.locations[0].physicalLocation.region.startLine) \(.ruleId) \(.message.text)"' lint.sarif
+              exit 1
+            fi
+          done
+          for params in staging.bicepparam prod.bicepparam; do
+            az bicep build-params --file "$params" --stdout > /dev/null
+          done
+
+      - name: Check setup script
+        run: shellcheck bootstrap/setup.sh

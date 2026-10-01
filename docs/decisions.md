@@ -67,3 +67,22 @@ new entry that supersedes the old one; don't edit history.
 - **Date:** 2026-10-01 · **Status:** Accepted
 - The Flutter project uses `com.nbdiary` as its organisation identifier. It only matters for a
   future App Store build and must be confirmed before any store release.
+
+## ADR-013: One existing subscription (nb-lab-001), separated by resource group
+- **Date:** 2026-10-01 · **Status:** Accepted (owner's choice)
+- Staging and production live in the owner's existing `nb-lab-001` subscription instead of two new
+  subscriptions: `rg-nbdiary-staging`, `rg-nbdiary-prod` and `rg-nbdiary-shared` (container registry).
+- **Isolation:** each environment has its own network, database, Key Vault, storage and identities.
+  GitHub's deploy identities can change only their own resource group, and may grant only the two
+  data roles the API needs. The production group has a delete lock.
+- **Costs:** budgets are filtered to NB Diary's resource groups, so other lab resources don't
+  trigger them. Nothing else in the subscription is touched.
+- **Trade-off:** a subscription-wide mistake (quota, policy, an owner deleting things) affects both
+  environments. Acceptable for a personal app; production can move to its own subscription later.
+
+## ADR-014: GitHub signs in to Azure from the main branch only
+- **Date:** 2026-10-01 · **Status:** Accepted
+- Deploy identities trust GitHub OIDC tokens for `refs/heads/main` of this repository, not GitHub
+  environments, because environment protection rules need a paid GitHub plan for private
+  repositories. Pull request runs can't reach Azure. Production is deployed only by the manual
+  `promote` workflow, which runs the image digest already tested in staging.

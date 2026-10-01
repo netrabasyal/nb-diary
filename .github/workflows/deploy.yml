@@ -1,0 +1,105 @@
+name: deploy
+
+# Every merge to main builds one image and deploys it to staging. Production gets exactly the
+# same image (by digest) when you run the "promote" workflow.
+on:
+  push:
+    branches: [main]
+    paths: ['apps/mobile/**', 'services/api/**', 'infrastructure/azure/**', '.github/workflows/deploy.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # OIDC sign-in to Azure; no Azure secret is stored in GitHub
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: '3.47.5'
+
+jobs:
+  deploy-staging:
+    # Skipped until bootstrap/setup.sh has connected this repository to Azure.
+    if: vars.AZURE_SUBSCRIPTION_ID != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Build web app
+        working-directory: apps/mobile
+        run: |
+          flutter pub get
+          flutter build web --release --no-web-resources-cdn
+          cp -r build/web/. ../../services/api/web-dist/
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID_STAGING }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build and push image
+        id: image
+        working-directory: services/api
+        run: |
+          set -euo pipefail
+          registry="${{ vars.ACR_LOGIN_SERVER }}"
+          az acr login --name "${{ vars.ACR_NAME }}"
+          docker build -t "$registry/nbdiary-api:${GITHUB_SHA}" .
+          docker push "$registry/nbdiary-api:${GITHUB_SHA}"
+          digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$registry/nbdiary-api:${GITHUB_SHA}")
+          echo "ref=$digest" >> "$GITHUB_OUTPUT"
+          echo "Image: $digest" >> "$GITHUB_STEP_SUMMARY"
+
+      # Staging PostgreSQL is stopped every night to save money.
+      - name: Start staging database if stopped
+        run: |
+          set -euo pipefail
+          server=$(az postgres flexible-server list -g rg-nbdiary-staging --query "[0].name" -o tsv)
+          if [ -n "$server" ] && [ "$(az postgres flexible-server show -g rg-nbdiary-staging -n "$server" --query state -o tsv)" = "Stopped" ]; then
+            az postgres flexible-server start -g rg-nbdiary-staging -n "$server"
+          fi
+
+      - name: Deploy infrastructure and app
+        id: deploy
+        env:
+          NBDIARY_IMAGE: ${{ steps.image.outputs.ref }}
+          NBDIARY_REGISTRY: ${{ vars.ACR_LOGIN_SERVER }}
+        run: |
+          set -euo pipefail
+          url=$(az deployment group create \
+            --resource-group rg-nbdiary-staging \
+            --name "nbdiary-${GITHUB_RUN_NUMBER}" \
+            --parameters infrastructure/azure/staging.bicepparam \
+            --query properties.outputs.appUrl.value -o tsv)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Staging: $url" >> "$GITHUB_STEP_SUMMARY"
+
+      # The first request after idle wakes the app (scale to zero), so allow a few tries.
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          url="${{ steps.deploy.outputs.url }}"
+          for attempt in $(seq 1 20); do
+            if curl -fsS --max-time 20 "$url/health/ready" && curl -fsS --max-time 20 -o /dev/null "$url/"; then
+              echo; echo "Staging is healthy"; exit 0
+            fi
+            echo "Attempt $attempt failed, retrying"; sleep 15
+          done
+          exit 1
+
+      # The same digest under a second tag; promote deploys whatever this points at.
+      - name: Mark image as tested in staging
+        run: |
+          registry="${{ vars.ACR_LOGIN_SERVER }}"
+          docker tag "$registry/nbdiary-api:${GITHUB_SHA}" "$registry/nbdiary-api:staging"
+          docker push "$registry/nbdiary-api:staging"
