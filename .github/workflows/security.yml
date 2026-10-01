@@ -19,7 +19,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Findings are shown as annotations (file, line, rule) with the value redacted.
       - name: Scan for committed secrets (gitleaks)
         run: |
           docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:latest \
-            git /repo --config /repo/.gitleaks.toml --redact --verbose
+            git /repo --config /repo/.gitleaks.toml --redact --exit-code 0 \
+            --report-format json --report-path /repo/gitleaks.json
+          count=$(jq length gitleaks.json)
+          jq -r '.[] | "::error file=\(.File),line=\(.StartLine)::gitleaks \(.RuleID) in commit \(.Commit[0:7])"' gitleaks.json
+          if [ "$count" -gt 0 ]; then
+            echo "$count possible secret(s) found"
+            exit 1
+          fi
