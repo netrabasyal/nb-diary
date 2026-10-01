@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using NbDiary.Api.Database;
 using NbDiary.Api.Health;
+using NbDiary.Api.WebApp;
 using NbDiary.SharedKernel;
-using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,11 +15,7 @@ if (!builder.Environment.IsDevelopment())
 
 builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddSingleton(services =>
-{
-    var connectionString = services.GetRequiredService<IConfiguration>().GetConnectionString("Postgres")
-        ?? throw new InvalidOperationException("Connection string 'Postgres' is not configured.");
-    return NpgsqlDataSource.Create(connectionString);
-});
+    PostgresDataSourceFactory.Create(services.GetRequiredService<IConfiguration>()));
 
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi("v1");
@@ -35,11 +32,9 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.Use(async (context, next) =>
-{
-    context.Response.Headers.XContentTypeOptions = "nosniff";
-    await next(context);
-});
+app.UseSecurityHeaders();
+app.UseWebAppFiles();
+app.UseRouting();
 
 // Liveness: the process is up. No dependencies, no details.
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
@@ -51,6 +46,8 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
+
+app.MapWebAppFallback();
 
 app.Run();
 
