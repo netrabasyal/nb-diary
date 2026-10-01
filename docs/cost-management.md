@@ -5,7 +5,7 @@ the production PostgreSQL server. These are estimates; check the Azure pricing c
 
 ## Controls (in Bicep)
 
-- Budgets in the `nb-lab-1` subscription, filtered to NB Diary's resource groups: AUD 70 (prod)
+- Budgets in the `nb-lab-001` subscription, filtered to NB Diary's resource groups: AUD 70 (prod)
   and AUD 25 (staging plus the shared registry), emails at 50/80/100% and on forecast.
   Set in `infrastructure/azure/bootstrap/main.bicep`.
 - Tags on every resource: `app`, `env`, `owner`, `module`.

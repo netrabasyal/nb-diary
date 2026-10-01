@@ -1,5 +1,5 @@
 // One NB Diary environment (staging or prod), deployed by GitHub Actions into its own resource
-// group in the nb-lab-1 subscription. The resource group, the API's identity and the shared
+// group in the nb-lab-001 subscription. The resource group, the API's identity and the shared
 // container registry come from bootstrap/main.bicep.
 targetScope = 'resourceGroup'
 

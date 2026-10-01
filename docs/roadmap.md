@@ -33,7 +33,7 @@ Each phase ends with working, tested software and updated docs.
 
 - [x] Bicep templates for both environments build with no linter warnings (`infra-ci`).
 - [x] The API image includes the web app and serves it with security headers.
-- [ ] One-time setup (`infrastructure/azure/bootstrap/setup.sh`) run in the `nb-lab-1` subscription.
+- [ ] One-time setup (`infrastructure/azure/bootstrap/setup.sh`) run in the `nb-lab-001` subscription.
 - [ ] A merge to `main` deploys to staging and passes the smoke test.
 - [ ] `promote` deploys the same image to production.
 - [ ] Staging opens on an iPhone, installs to the home screen and starts with no connection.

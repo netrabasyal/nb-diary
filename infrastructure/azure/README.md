@@ -1,6 +1,6 @@
 # Azure infrastructure
 
-Everything runs in the existing **nb-lab-1** subscription, Australia East, in three resource groups:
+Everything runs in the existing **nb-lab-001** subscription, Australia East, in three resource groups:
 
 | Resource group | Contents |
 | --- | --- |
@@ -9,7 +9,7 @@ Everything runs in the existing **nb-lab-1** subscription, Australia East, in th
 | `rg-nbdiary-prod` | Production: the same, plus email alerts and a delete lock |
 
 Container Apps also creates an `ME_cae-nbdiary-<env>_...` group for its own networking. Nothing
-else in nb-lab-1 is touched.
+else in nb-lab-001 is touched.
 
 ## Files
 
@@ -23,7 +23,7 @@ else in nb-lab-1 is touched.
 
 ## One-time setup
 
-You need to be **Owner** of nb-lab-1 (it creates role assignments). In the Azure portal, open
+You need to be **Owner** of nb-lab-001 (it creates role assignments). In the Azure portal, open
 **Cloud Shell** (the `>_` icon at the top), choose **Bash**, then run:
 
 ```bash

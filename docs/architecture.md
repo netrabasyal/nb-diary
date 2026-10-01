@@ -55,8 +55,8 @@ Modules are added as projects under `services/api/src/Modules/` in Phase 4.
 | Environment | Where | Purpose |
 | --- | --- | --- |
 | Development | Your PC: Docker PostgreSQL and Azurite, API and app run locally | Daily work |
-| Staging | Resource group `rg-nbdiary-staging` in subscription `nb-lab-1` | Every merge to `main` deploys here |
-| Production | Resource group `rg-nbdiary-prod` in subscription `nb-lab-1` | Manual promotion of the tested image |
+| Staging | Resource group `rg-nbdiary-staging` in subscription `nb-lab-001` | Every merge to `main` deploys here |
+| Production | Resource group `rg-nbdiary-prod` in subscription `nb-lab-001` | Manual promotion of the tested image |
 
 ## Current status
 

@@ -6,12 +6,12 @@
 #   gh repo clone netrabasyal/nb-diary && cd nb-diary
 #   ./infrastructure/azure/bootstrap/setup.sh
 #
-# Options: --subscription NAME (default nb-lab-1), --email ADDRESS (budget and alert emails,
+# Options: --subscription NAME (default nb-lab-001), --email ADDRESS (budget and alert emails,
 # default: the signed-in Azure account), --location REGION (default australiaeast).
 # Safe to run again: everything it creates is updated in place.
 set -euo pipefail
 
-subscription="nb-lab-1"
+subscription="nb-lab-001"
 location="australiaeast"
 email=""
 repo="netrabasyal/nb-diary"
@@ -38,6 +38,50 @@ if [ -z "$email" ]; then
   email="${email##*#}"
 fi
 echo "    Budget and alert emails go to: $email"
+
+# Everything NB Diary creates at subscription level. Nothing else is created or changed.
+resource_groups=(rg-nbdiary-shared rg-nbdiary-staging rg-nbdiary-prod)
+budgets=(budget-nbdiary-prod budget-nbdiary-nonprod)
+
+echo "==> Checking for name clashes with what is already in '$subscription'"
+clash=0
+ours=0
+for group in "${resource_groups[@]}"; do
+  if [ "$(az group exists --name "$group")" = "true" ]; then
+    # A group from an earlier run of this script carries the tag app=nbdiary; anything else is not ours.
+    if [ "$(az group show --name "$group" --query "tags.app" -o tsv)" = "nbdiary" ]; then
+      echo "    $group exists from an earlier run (tag app=nbdiary): will be updated"
+      ours=$((ours + 1))
+    else
+      echo "    STOP: resource group $group already exists and was not created by NB Diary" >&2
+      clash=1
+    fi
+  fi
+done
+existing_budgets="$(az consumption budget list --query "[].name" -o tsv 2>/dev/null || true)"
+for budget in "${budgets[@]}"; do
+  if grep -qx "$budget" <<< "$existing_budgets" && [ "$ours" -eq 0 ]; then
+    echo "    STOP: budget $budget already exists and was not created by NB Diary" >&2
+    clash=1
+  fi
+done
+if [ "$clash" -ne 0 ]; then
+  echo "Nothing was changed. Rename or remove the items above, or ask for different names." >&2
+  exit 1
+fi
+
+echo
+echo "This will create or update ONLY:"
+echo "  Resource groups: ${resource_groups[*]}"
+echo "  Budgets:         ${budgets[*]}"
+echo "  Resources inside those three groups, a delete lock on rg-nbdiary-prod, and the"
+echo "  ME_cae-nbdiary-staging_* and ME_cae-nbdiary-prod_* groups Azure creates for Container Apps."
+echo "No other resource group in '$subscription' is read, changed or deleted."
+read -r -p "Type yes to continue: " answer
+if [ "$answer" != "yes" ]; then
+  echo "Cancelled. Nothing was changed."
+  exit 0
+fi
 
 echo "==> Registering the Azure services NB Diary uses (once per subscription)"
 for namespace in Microsoft.App Microsoft.ContainerRegistry Microsoft.DBforPostgreSQL \

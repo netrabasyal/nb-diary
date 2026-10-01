@@ -68,9 +68,9 @@ new entry that supersedes the old one; don't edit history.
 - The Flutter project uses `com.nbdiary` as its organisation identifier. It only matters for a
   future App Store build and must be confirmed before any store release.
 
-## ADR-013: One existing subscription (nb-lab-1), separated by resource group
+## ADR-013: One existing subscription (nb-lab-001), separated by resource group
 - **Date:** 2026-10-01 · **Status:** Accepted (owner's choice)
-- Staging and production live in the owner's existing `nb-lab-1` subscription instead of two new
+- Staging and production live in the owner's existing `nb-lab-001` subscription instead of two new
   subscriptions: `rg-nbdiary-staging`, `rg-nbdiary-prod` and `rg-nbdiary-shared` (container registry).
 - **Isolation:** each environment has its own network, database, Key Vault, storage and identities.
   GitHub's deploy identities can change only their own resource group, and may grant only the two
