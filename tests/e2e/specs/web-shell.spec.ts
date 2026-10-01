@@ -1,4 +1,6 @@
+import type { Server } from 'node:http';
 import { expect, test, type Page } from '@playwright/test';
+import { startServer } from '../serve.mjs';
 
 // Flutter draws to a canvas. Turning on its accessibility tree exposes the
 // on-screen text as DOM nodes, the same nodes VoiceOver reads.
@@ -8,8 +10,8 @@ async function enableSemantics(page: Page) {
   await placeholder.evaluate((el: HTMLElement) => el.click());
 }
 
-async function openApp(page: Page, path = '/') {
-  await page.goto(path);
+async function openApp(page: Page, url: string) {
+  await page.goto(url);
   await enableSemantics(page);
   await expect(page.getByText('Start workout')).toBeVisible();
 }
@@ -24,25 +26,39 @@ async function timesOpened(page: Page): Promise<number> {
   return Number(match[1]);
 }
 
-test('opens offline and keeps data on the device across reloads', async ({ page, context }) => {
-  await openApp(page);
-  expect(await timesOpened(page)).toBe(1);
+async function stop(server: Server) {
+  server.closeAllConnections();
+  await new Promise((resolve) => server.close(resolve));
+}
 
-  // Wait until the service worker controls the page, so files are cached.
-  await page.evaluate(async () => {
-    await navigator.serviceWorker.ready;
-    if (!navigator.serviceWorker.controller) {
-      await new Promise((resolve) =>
-        navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true }),
-      );
-    }
-  });
+test('opens offline and keeps data on the device across reloads', async ({ page }, testInfo) => {
+  // A dedicated server per browser, so going "offline" means really stopping it:
+  // the app must then load from the service worker's cache, as on a phone in the gym.
+  const port = 8090 + testInfo.parallelIndex;
+  const origin = `http://localhost:${port}`;
+  const server = await startServer(port);
 
-  await openApp(page);
-  expect(await timesOpened(page)).toBe(2);
+  try {
+    await openApp(page, `${origin}/`);
+    expect(await timesOpened(page)).toBe(1);
 
-  await context.setOffline(true);
-  await openApp(page, '/gym');
+    // Wait until the service worker controls the page, so files are cached.
+    await page.evaluate(async () => {
+      await navigator.serviceWorker.ready;
+      if (!navigator.serviceWorker.controller) {
+        await new Promise((resolve) =>
+          navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true }),
+        );
+      }
+    });
+
+    await openApp(page, `${origin}/`);
+    expect(await timesOpened(page)).toBe(2);
+  } finally {
+    await stop(server);
+  }
+
+  await openApp(page, `${origin}/gym`);
   expect(await timesOpened(page)).toBe(3);
 });
 
