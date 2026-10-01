@@ -1,0 +1,95 @@
+name: app-ci
+
+on:
+  pull_request:
+    paths: ['apps/mobile/**', 'tests/e2e/**', '.github/workflows/app-ci.yml']
+  push:
+    branches: [main]
+    paths: ['apps/mobile/**', 'tests/e2e/**', '.github/workflows/app-ci.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.47.5'
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Check generated Drift code is up to date
+        run: |
+          dart run build_runner build --delete-conflicting-outputs
+          git diff --exit-code -- lib
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Unit, widget and database tests
+        run: flutter test
+
+      - name: Build web app (engine files self-hosted)
+        run: flutter build web --release --no-web-resources-cdn
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: apps/mobile/build/web
+          retention-days: 7
+
+  browser-tests:
+    needs: test-and-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: tests/e2e
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-build
+          path: apps/mobile/build/web
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tests/e2e/package-lock.json
+
+      - name: Install Playwright with Chromium and WebKit (Safari's engine)
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium webkit
+
+      - name: Run browser tests
+        env:
+          CI: 'true'
+        run: npx playwright test
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-results
+          path: tests/e2e/test-results
+          retention-days: 7

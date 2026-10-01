@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/NbDiary.Api/NbDiary.Api.csproj" />
+    <Project Path="src/NbDiary.SharedKernel/NbDiary.SharedKernel.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/NbDiary.Api.Tests/NbDiary.Api.Tests.csproj" />
+    <Project Path="tests/NbDiary.ArchitectureTests/NbDiary.ArchitectureTests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,7 @@
+# Gitleaks configuration: default rules plus allowances for local-only values.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Local Docker development credentials are not secrets"
+regexes = ['''nbdiary_local_only''']
